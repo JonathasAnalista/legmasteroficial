@@ -547,7 +547,7 @@ function openWhatsPro() {
 // const PIX_INFO = {
 //   chave: "11447748611",
 //   valorCentavos: 3000, // R$ 30,00
-//   whatsTexto: "(31) 99264-5509",
+//   whatsTexto: "(35) 99847-5349",
 //   titular: "Jonathas Guilherme de Paula",
 //   banco: "Caixa Econômica Federal"
 // };
@@ -744,7 +744,7 @@ window.registrarDesempenhoFimProva = function (acertos, totalQuestoes) {
 };
 
 /* ================== AJUDA NO WHATSAPP ================== */
-const WA_NUMBER = "5531992645509";
+const WA_NUMBER = "5535998475349";
 window.openLoginHelp = function () {
   const email = (document.getElementById("email")?.value || "").trim();
   const msg = `Olá! Tive dificuldade para entrar na plataforma. Meu e-mail: ${email || "(não preenchi)"} Pode me ajudar?`;
