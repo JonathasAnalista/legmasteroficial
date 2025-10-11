@@ -777,11 +777,12 @@ function renderLogin() {
       <div id="erro-senha" style="color:#d32f2f;font-size:12px;margin-top:4px;"></div>
     </div>
     <button type="button" class="auth-btn" id="botaoLogin">Entrar</button>
+    <button type="button" class="auth-btn" id="btn-reset" style="margin-top:12px;">Recuperar senha</button>
     <button type="button" class="auth-btn" data-noback="1" style="margin-top:16px;" onclick="logout()">Voltar</button>
-    <a class="support-link" style="margin-top:10px;display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:#128C7E;font-weight:800;" target="_blank" rel="noopener" href="https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Olá! Preciso de suporte técnico para acessar o app.')}"><img src="./icons/zap.png?v=${ASSET_VERSION}" alt="" class="wa-icon-img"/> Clique aqui para suporte técnico</a>
-    
+
     `;
   document.getElementById("botaoLogin").addEventListener("click", login);
+  document.getElementById("btn-reset")?.addEventListener("click", resetSenha);
   document.getElementById("email").focus();
   animateCard();
 }
@@ -807,13 +808,20 @@ function setFieldError(inputId, errorBoxId, message) {
 function clearFieldErrors(){ setFieldError("email","erro-email",""); setFieldError("senha","erro-senha",""); const box = document.getElementById("login-error"); if (box) { box.classList.remove("is-visible"); box.textContent = ""; } }
 async function resetSenha() {
   const email = normalizeEmail((document.getElementById("email")?.value || ""));
-  const show = (m)=>{ if (typeof mostrarAlertaLogin==="function") mostrarAlertaLogin(m); else alert(m); };
+  const show = (m) => {
+    if (typeof showLoginBanner === "function") showLoginBanner(m);
+    else if (typeof mostrarAlertaLogin === "function") mostrarAlertaLogin(m);
+    else alert(m);
+  };
   if (!email) { show("Digite seu e-mail no campo acima e clique em 'Esqueci minha senha'."); document.getElementById("email")?.focus(); return; }
   const btn = document.getElementById("btn-reset");
   const a = getAuthSafe();
   if (!a || typeof a.sendPasswordResetEmail !== "function") { show("Serviço de login indisponível no momento. Atualize a página e tente novamente."); if (btn) btn.disabled = false; return; }
   if (btn) btn.disabled = true;
-  try { await a.sendPasswordResetEmail(email); show(`Enviamos um e-mail para redefinir sua senha. Remetente: ${RESET_SENDER_HINT} ✅`); }
+  try {
+    await a.sendPasswordResetEmail(email);
+    show(`Enviamos o e-mail de recuperação de senha para ${email}. Verifique a caixa de entrada e também a pasta de SPAM. Remetente: ${RESET_SENDER_HINT}`);
+  }
   catch (e) {
     console.error("resetSenha erro:", e);
     const map = {"auth/user-not-found":"Não encontramos esse e-mail.","auth/invalid-email":"E-mail inválido.","auth/missing-email":"Digite seu e-mail."};
@@ -1260,7 +1268,7 @@ function renderIntro() {
 }
 
 /*************************************************
- * CADASTRO (somente Nome do CFC + Cidade do CFC)
+ * CADASTRO (dados básicos)
  *************************************************/
 function renderCadastro() {
   if (!window.__navigatingBack) pushRoute('cadastro');
@@ -1278,18 +1286,6 @@ function renderCadastro() {
     <div class="form-group"><label>Senha</label><input type="password" id="cad_senha" required autocapitalize="none" autocorrect="off" spellcheck="false" /><small style="color:#666;">Mínimo de 6 caracteres</small></div>
     <div class="form-group"><label>Confirmar senha</label><input type="password" id="cad_confirma" required autocapitalize="none" autocorrect="off" spellcheck="false" /></div>
 
-    <hr style="margin:14px 0;opacity:.35">
-
-    <div class="form-group">
-      <label>Nome do CFC (obrigatório)</label>
-      <input type="text" id="cad_cfc_nome" placeholder="Ex.: CFC São José" />
-      <small style="color:#666;">Usamos para agrupar alunos por CFC.</small>
-    </div>
-    <div class="form-group">
-      <label>Cidade do CFC (obrigatório)</label>
-      <input type="text" id="cad_cfc_cidade" placeholder="Ex.: Ouro Fino - MG" />
-    </div>
-
     <div id="cadastro-msg" style="display:none;margin-top:10px;font-size:14px;"></div>
     <button type="button" class="auth-btn" id="botaoCadastrar" style="margin-top:14px">Cadastrar</button>
     <button type="button" class="auth-btn" data-noback="1" style="margin-top:14px" onclick="logout()">Voltar</button>
@@ -1303,14 +1299,6 @@ window.cadastrar = async function () {
   const email   = normalizeEmail((document.getElementById("cad_email")?.value || ""));
   const senha   = (document.getElementById("cad_senha")?.value || "").trim();
   const conf    = (document.getElementById("cad_confirma")?.value || "").trim();
-  const cfcNomeR= (document.getElementById("cad_cfc_nome")?.value || "");
-  const cfcCidR = (document.getElementById("cad_cfc_cidade")?.value || "");
-
-  const cfcNome    = toTitleCase(cfcNomeR);
-  const cfcCidade  = toTitleCase(cfcCidR);
-  const nomeSlug   = slugify(cfcNome);
-  const cidadeSlug = slugify(cfcCidade);
-  const cfcSlug    = buildCfcSlug(cfcNome, cfcCidade);
 
   const msgBox = document.getElementById("cadastro-msg");
   const showMsg = (txt, ok=false) => {
@@ -1323,8 +1311,6 @@ window.cadastrar = async function () {
   if (!email || !senha || !conf) return showMsg("Preencha todos os campos obrigatórios.");
   if (senha.length < 6)         return showMsg("A senha deve ter pelo menos 6 caracteres.");
   if (senha !== conf)           return showMsg("As senhas não coincidem.");
-  if (!cfcNome)                 return showMsg("Informe o NOME do CFC.");
-  if (!cfcCidade)               return showMsg("Informe a CIDADE do CFC.");
 
   const a = getAuthSafe(); if (!a || typeof a.createUserWithEmailAndPassword !== "function") {
     console.warn("[Cadastro] Firebase Auth indisponível.");
@@ -1354,24 +1340,14 @@ window.cadastrar = async function () {
         if (idLegacy !== idNew) await db.collection("liberacoes").doc(idLegacy).set({ ...payloadLib, _migrado: true }, { merge: true });
         try { localStorage.setItem(`plano:${email}`, "free"); } catch {}
 
-        // Perfil com CFC por NOME + CIDADE
+        // Perfil básico do usuário
         const perfil = {
           nome: nomeFinal, email, plano: "free",
-          cfcNome, cfcCidade, nomeSlug, cidadeSlug, cfcSlug,
           criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
         };
         await db.collection("usuarios").doc(idNew).set(perfil, { merge: true });
         if (idLegacy !== idNew) await db.collection("usuarios").doc(idLegacy).set({ ...perfil, _migrado: true }, { merge: true });
-
-        // Índice por CFC (agregador)
-        const idxRef = db.collection("cfc_index").doc(cfcSlug);
-        await idxRef.set({
-          cfcNome, cfcCidade, nomeSlug, cidadeSlug,
-          alunos: firebase.firestore.FieldValue.increment(1),
-          lastAlunoEmail: email, lastAlunoNome: nomeFinal,
-          atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
       }
     } catch (e) { console.warn("⚠️ Falha ao gravar dados no Firestore:", e); }
 
